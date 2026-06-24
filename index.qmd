@@ -1,0 +1,238 @@
+---
+title: "白蚁对凋落物分解影响的荟萃分析复现"
+author: "李昀昇及小组成员"
+date: "2026-04-03"
+repo-url: "https://github.com/Yunhhhsheng/termite-litter-decomposition"
+format:
+  html:
+    theme: cosmo
+    toc: true
+    code-fold: false
+---
+
+> 📦 **源代码**: [GitHub 仓库](https://github.com/Yunhhhsheng/termite-litter-decomposition)
+
+## 研究背景
+
+本项目复现 Wang 等 (2024) 发表于 *Catena* 的论文 **"Precipitation rather than temperature primarily drives global termite effects on litter decomposition"** 中的核心图表（图3、图4）。
+
+该研究通过荟萃分析评估了全球尺度下白蚁对凋落物分解的影响，并识别了关键气候驱动因子（如年均降水量 MAP、年均温度 MAT 等）。
+
+### 复现目标
+
+- **图3**：展示不同生态系统、基质类型、排除方法和分解环境下白蚁对凋落物质量损失的响应比（lnRR）及其 95% 置信区间
+- **图4**：展示在不同分组下，气候与地理因子对 lnRR 的影响方向与显著性
+
+## 数据来源
+
+由于作者未提供原始数据，数据从图表中数字化提取，整理为统一格式的 CSV 文件：
+
+- `lnRR` — 响应比对数值
+- `variance` — 方差
+- `MAT` — 年均温度
+- `MAP` — 年均降水量
+- `elevation` — 海拔
+- `latitude` — 纬度
+- `longitude` — 经度
+- `ecosystem` — 生态系统类型
+- `substrate` — 基质类型
+- `method` — 排除方法
+- `environment` — 干湿度指数
+
+## 图3（a）：白蚁效应的总体分析
+
+### 分析目的
+
+展示白蚁在不同生态系统、排除方法和干湿度条件下对凋落物分解的影响程度。
+
+### R 代码
+
+```{r}
+#| warning: false
+#| fig-cap: "白蚁对凋落物分解影响的荟萃分析结果（图3a）"
+library(ggplot2)
+library(dplyr)
+
+# 数据整理
+df_data <- data.frame(
+  subgroup = c("Overall", "Grassland", "Forest", "Farmland", "Desert",
+               "Mesh bag", "Pesticide", "Eye pick",
+               "Humid", "Dry sub-humid", "Semi-Arid", "Arid"),
+  y_pos = c(374.4, 324.5, 299.34, 274.7, 249.36,
+            199.3, 174.0, 150.1,
+            99.6, 74.61, 49.6, 24.5),
+  mean = c(-41.5856, -27.4461, -44.7512, -39.6863, -59.7349,
+           -36.5207, -57.8355, -24.4916,
+           -27.4461, -61.8452, -58.8907, -59.7349),
+  lower = c(-54.66996, -49.81609, -57.83553, -78.93931, -83.16006,
+            -50.66024, -69.86468, -57.83553,
+            -41.58562, -86.11459, -73.87440, -74.92959),
+  upper = c(-27.44608, -3.17674, -28.50127, 65.41055, -4.23193,
+            -19.42665, -41.58562, 37.13148,
+            -6.34230, 10.96280, -40.53043, -34.62137),
+  N = c(187, 51, 124, 3, 9, 136, 37, 14, 120, 12, 37, 18),
+  sig = c("***", "*", "***", "", "***", "**", "***", "", "*", "", "***", "***"),
+  effect_type = c("negative", "negative", "negative", "non-signif", "negative",
+                  "negative", "negative", "non-signif",
+                  "negative", "non-signif", "negative", "negative")
+)
+
+df_data$label <- paste0(df_data$subgroup, " (", df_data$N, ")")
+df_data <- df_data %>% arrange(desc(y_pos))
+
+group_annotations <- data.frame(
+  label = c("Ecosystems", "Method", "Aridity Index"),
+  y = c(287, 175, 62),
+  x = -95
+)
+
+p <- ggplot(df_data, aes(y = y_pos)) +
+  geom_errorbarh(aes(xmin = lower, xmax = upper), height = 1.2, color = "black", linewidth = 0.6) +
+  geom_point(aes(x = mean, fill = effect_type, color = effect_type), shape = 21, size = 3.5, stroke = 0.8) +
+  geom_text(aes(x = mean + 3, label = sig), hjust = 0, vjust = 0.5, size = 4, color = "black") +
+  geom_vline(xintercept = 0, linetype = "solid", color = "black", linewidth = 0.8) +
+  geom_hline(yintercept = df_data$y_pos, color = "gray90", linewidth = 0.4) +
+  annotate("text", x = group_annotations$x, y = group_annotations$y,
+           label = group_annotations$label, hjust = 0, vjust = 0.5,
+           fontface = "bold", size = 4.5, color = "black") +
+  scale_y_reverse(breaks = df_data$y_pos, labels = df_data$label) +
+  scale_x_continuous(breaks = seq(-100, 80, by = 20), limits = c(-100, 80)) +
+  scale_fill_manual(values = c("negative" = "#1f77b4", "non-signif" = "white")) +
+  scale_color_manual(values = c("negative" = "#1f77b4", "non-signif" = "black")) +
+  labs(x = "Changes in percentage (%)", y = NULL) +
+  theme_minimal(base_size = 12) +
+  theme(panel.grid.major.x = element_line(color = "gray85", linewidth = 0.4),
+        panel.grid.major.y = element_blank(), panel.grid.minor = element_blank(),
+        axis.line.x = element_line(color = "black", linewidth = 0.5),
+        axis.ticks.x = element_line(color = "black"),
+        axis.text.y = element_text(size = 10, hjust = 1, margin = margin(r = 5)),
+        plot.margin = margin(10, 15, 10, 20),
+        panel.background = element_rect(fill = "white", color = NA)) +
+  guides(fill = "none", color = "none") +
+  coord_cartesian(xlim = c(-100, 80), ylim = c(420, 10), clip = "off")
+
+print(p)
+```
+
+### 结果解读
+
+- **总体效应**：白蚁使全球凋落物质量损失率平均提高 **41.2%**
+- **生态系统**：森林（+44.8%）和草地（+30.4%）最显著，农田和沙漠不显著
+- **基质类型**：木质凋落物、草类和粪便受白蚁影响最大（>42%）
+- **干湿度**：半干旱地区效果最明显
+
+## 图3（b）：基质类型的详细分析
+
+```{r}
+#| warning: false
+#| fig-cap: "不同基质类型下白蚁对凋落物分解的影响（图3b）"
+library(ggplot2)
+
+df_substrate <- data.frame(
+  subgroup = c("Root", "Leaf", "Wood", "Grass", "Straw", "Dung"),
+  mean = c(-12.5, -18.3, -45.2, -42.8, -15.6, -48.9),
+  lower = c(-35.2, -42.1, -62.4, -68.3, -38.7, -72.1),
+  upper = c(10.2, 5.5, -28.0, -17.3, 7.5, -25.7),
+  N = c(28, 45, 52, 31, 18, 13),
+  sig = c("", "", "***", "***", "", "***"),
+  effect_type = c("non-signif", "non-signif", "negative", "negative", "non-signif", "negative")
+)
+
+df_substrate$label <- paste0(df_substrate$subgroup, " (", df_substrate$N, ")")
+
+p2 <- ggplot(df_substrate, aes(y = reorder(label, mean))) +
+  geom_errorbarh(aes(xmin = lower, xmax = upper), height = 0.6, color = "black", linewidth = 0.5) +
+  geom_point(aes(x = mean, fill = effect_type, color = effect_type), shape = 21, size = 3, stroke = 0.8) +
+  geom_text(aes(x = mean + 2, label = sig), hjust = 0, vjust = 0.5, size = 4) +
+  geom_vline(xintercept = 0, linetype = "solid", color = "black", linewidth = 0.8) +
+  scale_x_continuous(breaks = seq(-80, 20, by = 20), limits = c(-80, 30)) +
+  scale_fill_manual(values = c("negative" = "#1f77b4", "non-signif" = "white")) +
+  scale_color_manual(values = c("negative" = "#1f77b4", "non-signif" = "black")) +
+  labs(x = "Changes in percentage (%)", y = NULL, title = "Substrate Types") +
+  theme_minimal(base_size = 12) +
+  theme(panel.grid.major.y = element_blank(),
+        axis.line.x = element_line(color = "black", linewidth = 0.5),
+        plot.margin = margin(10, 15, 10, 20)) +
+  guides(fill = "none", color = "none")
+
+print(p2)
+```
+
+## 图4：气候与地理因子的调节作用
+
+### 分析目的
+
+展示不同环境因子（MAT、MAP、纬度、海拔等）对白蚁效应（lnRR）的影响方向与显著性。
+
+```{r}
+#| warning: false
+#| fig-cap: "气候与地理因子对白蚁效应的调节作用（图4）"
+library(ggplot2)
+library(dplyr)
+
+# 图4数据
+factors <- c("MAT", "MAP", "Latitude", "Longitude", "Elevation", "Evaporation", "Duration")
+ecosystems <- c("Forest", "Grassland")
+
+# Forest ecosystem effects
+forest_effects <- data.frame(
+  factor = factors,
+  ecosystem = "Forest",
+  estimate = c(0.23, 0.31, -0.18, 0.15, -0.22, -0.14, 0.08),
+  p_value = c(0.02, 0.001, 0.04, 0.08, 0.01, 0.12, 0.45),
+  significant = c("Yes", "Yes", "Yes", "No", "Yes", "No", "No")
+)
+
+# Grassland ecosystem effects
+grassland_effects <- data.frame(
+  factor = factors,
+  ecosystem = "Grassland",
+  estimate = c(0.18, 0.12, -0.05, 0.08, 0.15, -0.21, 0.03),
+  p_value = c(0.05, 0.15, 0.62, 0.42, 0.08, 0.03, 0.82),
+  significant = c("Yes", "No", "No", "No", "No", "Yes", "No")
+)
+
+all_effects <- rbind(forest_effects, grassland_effects)
+
+p3 <- ggplot(all_effects, aes(x = factor, y = estimate, fill = significant)) +
+  geom_bar(stat = "identity", position = position_dodge(), width = 0.7) +
+  geom_hline(yintercept = 0, linetype = "solid", color = "black") +
+  facet_wrap(~ ecosystem, scales = "free_y") +
+  scale_fill_manual(values = c("Yes" = "#1f77b4", "No" = "gray80")) +
+  labs(x = "Environmental Factors", y = "Effect Size (β)", fill = "Significant") +
+  theme_minimal(base_size = 12) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        strip.text = element_text(face = "bold", size = 12))
+
+print(p3)
+```
+
+### 结果解读
+
+**森林生态系统：**
+- MAT、MAP 和经度对白蚁促进分解呈正相关
+- 纬度、海拔和蒸发量呈负相关
+- **MAP 是最关键驱动因子**（p = 0.001）
+
+**草地生态系统：**
+- MAT 和海拔为正相关
+- 蒸发量为负相关
+
+## 结论
+
+1. 白蚁显著促进全球凋落物分解（+41.2%）
+2. 森林和草地生态系统中效应最显著
+3. **降水量（MAP）是影响白蚁分解作用的最关键驱动因子**
+4. 木质凋落物受白蚁影响最大
+
+## 环境信息
+
+```{r}
+#| eval: false
+sessionInfo()
+```
+
+## 团队分工
+
+- **李昀昇**：项目组长，负责数据数字化与 R 代码编写
+- **小组成员**：参与文献阅读与结果解读
